@@ -44,36 +44,140 @@
 			<div class="slides">
 				<section data-markdown>
 					<script type="text/template">
-						# 
+# Recent Luigi Features
 
+Stockholm Hadooup User Group
+
+Wednesday, November 26, 2014
 					</script>
 				</section>
 
+				<section data-markdown>
+## What is luigi?
 
+> Conceptually, Luigi is similar to GNU Make where you have certain
+> tasks and these tasks in turn may have dependencies on other tasks.
+> There are also some similarities to Oozie and Azkaban. One major
+> difference is that Luigi is not just built specifically for Hadoop,
+> and it’s easy to extend it with other kinds of tasks
+				</section>
+
+
+				<section data-markdown>
+## What is luigi?
+
+```python
+class AggregateArtists(luigi.Task):
+    date_interval = luigi.DateIntervalParameter()
+
+    def output(self):
+        return luigi.LocalTarget("%s.tsv" % self.date_interval)
+
+    def requires(self):
+        return [Streams(date) for date in self.date_interval]
+
+    def run(self):
+        for input in self.input():
+            with input.open('r') as in_file:
+                pass
+
+        with self.output().open('w') as out_file:
+            pass
+```
+
+				</section>
 
 
 				<section>
-					<h2>Pretty Code</h2>
-					<pre><code data-trim contenteditable>
-function linkify( selector ) {
-  if( supports3DTransforms ) {
+          <section data-markdown>
+## Feature [#445](https://github.com/spotify/luigi/pull/445): Resource limitations
 
-    var nodes = document.querySelectorAll( selector );
+```python
+class MyHeavyTask(luigi.Task):
 
-    for( var i = 0, len = nodes.length; i &lt; len; i++ ) {
-      var node = nodes[i];
+    def run(self):
+        pass
 
-      if( !node.className ) {
-        node.className += ' roll';
-      }
-    }
-  }
-}
-					</code></pre>
-					<p>Courtesy of <a href="http://softwaremaniacs.org/soft/highlight/en/description/">highlight.js</a>.</p>
+    def output(self):
+        pass
+
+    def process_resources(self):
+        # We put estimations here, relative to what we put for other jobs
+        return { 'database_load': 5, 'cluster_load': 7  }
+
+```
+
+          </section>
+          <section data-markdown>
+Then you can specify how much you have for each resource:
+
+```bash
+$ cat /etc/luigi/server.cfg
+[sectionA]
+...
+
+[sectionB]
+...
+
+[resources]
+database_load: 100
+cluster_load:  1000
+
+```
+
+So far, the resources are always scoped globally. It's interesting to scope it
+to say per machine or per rack.
+          </section>
 				</section>
-			</div>
 
+
+				<section>
+          <section data-markdown>
+## Feature [#424](https://github.com/spotify/luigi/pull/424): Dynamic requirements
+
+So instead of doing
+
+```python
+def requires(self): return OtherTask(...)
+def run(self): f = self.input()
+```
+you can do
+
+```python
+def run(self): f = yield OtherTask(...)
+```
+
+Strategy is to re-schedule when depedency is missing. So `run()` should
+be idempotent-ish.
+          </section>
+          <section data-markdown>
+Use case is for when you have a dependency hierarchy *within* the task.
+
+```python
+    def run(self):
+        # This could be done using regular requires method
+        machine = yield MachineConfig()
+
+        file = yield (CompressedFile()
+                     if machine.is_network_bound()
+                     else UncompressedFile())
+
+        with self.output().open('w') as f:
+            f.write(file.sum_ints())
+```
+
+Is this safe?
+
+          </section>
+				</section>
+
+
+
+
+
+
+
+			</div>
 		</div>
 
 		<script src="lib/js/head.min.js"></script>
